@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- app-shell:start (solo para la versión instalable; no se copia al artifact) -->
+<meta name="theme-color" content="#E7EBE9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111413" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Check-in">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="description" content="Revisa que todo el equipo esté en la mochila antes de salir a grabar.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<!-- app-shell:end -->
+<title>Check-in de Equipos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: una columna estrecha para el teléfono. Arriba, fijo, un medidor de batería
+   de cámara que se llena una rayita por cada equipo que entra a la mochila.
+   Los grupos se marcan con tiras de cinta gaffer, como se rotulan los estuches. */
+:root{
+  --bg:#E7EBE9;
+  --surface:#F7F9F8;
+  --ink:#141917;
+  --muted:#58635E;
+  --line:#C6CECA;
+  --cell-off:#D2D9D5;
+  --tape:#F2C230;
+  --tape-ink:#1C1A10;
+  --ok:#17834A;
+  --on-ok:#FFFFFF;
+  --ok-soft:#DCEEE3;
+  --ok-line:#9CCFB1;
+  --rec:#D23A2C;
+  --on-rec:#FFFFFF;
+  --focus:#2563D9;
+  --toast-bg:#141917;
+  --toast-fg:#F2F5F3;
+  --toast-action:#F2C230;
+  --font-display:"Barlow Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
+  --font-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111413; --surface:#1A1F1D; --ink:#E6ECE9; --muted:#97A39E; --line:#2E3633;
+    --cell-off:#29312D; --tape:#F2C230; --tape-ink:#1C1A10; --ok:#3EC27A; --on-ok:#0B1A12;
+    --ok-soft:#16301F; --ok-line:#2A5A3E; --rec:#FF5A4A; --on-rec:#1A0806; --focus:#7EA8FF;
+    --toast-bg:#E6ECE9; --toast-fg:#111413; --toast-action:#8A5B00;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111413; --surface:#1A1F1D; --ink:#E6ECE9; --muted:#97A39E; --line:#2E3633;
+  --cell-off:#29312D; --tape:#F2C230; --tape-ink:#1C1A10; --ok:#3EC27A; --on-ok:#0B1A12;
+  --ok-soft:#16301F; --ok-line:#2A5A3E; --rec:#FF5A4A; --on-rec:#1A0806; --focus:#7EA8FF;
+  --toast-bg:#E6ECE9; --toast-fg:#111413; --toast-action:#8A5B00;
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:var(--font-body);font-size:16px;line-height:1.4;
+  -webkit-tap-highlight-color:transparent;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.wrap{
+  max-width:560px;margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+
+/* ---------- Encabezado fijo con el medidor ---------- */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.top-in{padding-block:12px 14px;display:grid;gap:10px}
+.top-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.brand{min-width:0;display:grid;gap:2px}
+.eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+h1{margin:0;font-family:var(--font-display);font-weight:700;font-size:28px;line-height:1;letter-spacing:.005em;text-wrap:balance}
+.count{font-family:var(--font-mono);font-weight:700;font-size:28px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.count .of{color:var(--muted);font-weight:500}
+.meter{display:flex;align-items:center}
+.meter.pop{animation:pop .55s ease}
+.cells{flex:1;display:flex;gap:3px;height:26px;padding:3px;border:2px solid var(--ink);border-radius:6px;transition:border-color .25s}
+.cell{flex:1;min-width:0;border-radius:2px;background:var(--cell-off);transition:background-color .2s}
+.cell.on{background:var(--ok)}
+.nub{width:6px;height:11px;background:var(--ink);border-radius:0 3px 3px 0;transition:background-color .25s}
+.meter.full .cells{border-color:var(--ok)}
+.meter.full .nub{background:var(--ok)}
+@keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.035)}100%{transform:scale(1)}}
+
+/* ---------- Contenido ---------- */
+.main{padding-block:18px 48px;display:grid;gap:24px}
+
+.status{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:14px 16px 16px;display:grid;gap:6px;transition:background-color .25s,border-color .25s}
+.status.done{background:var(--ok-soft);border-color:var(--ok-line)}
+.status-title{margin:0;display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:700;font-size:24px;line-height:1.1}
+.status-detail{margin:0;color:var(--muted);font-size:15px}
+.status.done .status-detail{color:var(--ink)}
+.rec{width:12px;height:12px;border-radius:50%;background:var(--rec);flex:none;animation:blink 1s ease-in-out infinite alternate}
+@keyframes blink{to{opacity:.2}}
+.missing{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  appearance:none;cursor:pointer;background:transparent;
+  border:1.5px dashed var(--muted);border-radius:999px;
+  padding:5px 12px;font-size:14px;font-weight:500;line-height:1.2;color:var(--ink);
+}
+.chip:active{transform:scale(.97)}
+
+.field{display:grid;gap:6px;min-width:0}
+.field-label{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+input[type="text"],select{
+  width:100%;min-width:0;font-size:16px;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px;color:var(--ink);
+}
+input::placeholder{color:var(--muted);opacity:.85}
+
+.hint{margin:0;color:var(--muted);font-size:15px}
+
+/* Grupos y equipos */
+#groups{display:grid;gap:24px}
+.group{display:grid;gap:10px}
+.group-h{margin:0;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tape{
+  display:inline-block;background:var(--tape);color:var(--tape-ink);
+  font-family:var(--font-display);font-weight:700;font-size:15px;line-height:1.2;
+  letter-spacing:.09em;text-transform:uppercase;
+  padding:5px 14px 4px;transform:rotate(-1.2deg);
+  clip-path:polygon(0 8%,2% 0,6% 6%,94% 2%,98% 7%,100% 0,99% 50%,100% 100%,96% 93%,4% 98%,1% 92%,0 100%,1% 50%);
+}
+.group-n{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.group-n.all{color:var(--ok);font-weight:700}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+
+.item{
+  appearance:none;cursor:pointer;width:100%;
+  display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;gap:14px;
+  min-height:62px;padding:13px 16px;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  text-align:left;color:var(--ink);
+  transition:background-color .15s,border-color .15s,transform .08s;
+}
+.item:active{transform:scale(.985)}
+.box{
+  width:30px;height:30px;border-radius:8px;border:2px solid var(--muted);
+  display:grid;place-items:center;color:var(--on-ok);
+  transition:background-color .15s,border-color .15s;
+}
+.box svg{width:19px;height:19px;opacity:0;transform:scale(.5);transition:opacity .15s,transform .2s}
+.item[aria-checked="true"]{background:var(--ok-soft);border-color:var(--ok-line)}
+.item[aria-checked="true"] .box{background:var(--ok);border-color:var(--ok)}
+.item[aria-checked="true"] .box svg{opacity:1;transform:none}
+.txt{min-width:0}
+.name{display:block;font-weight:600;font-size:18px;line-height:1.2;overflow-wrap:anywhere}
+.note{display:block;margin-top:2px;font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.item.flash{animation:flash 1s ease}
+@keyframes flash{0%,100%{box-shadow:0 0 0 0 transparent}25%,60%{box-shadow:0 0 0 4px var(--tape)}}
+
+/* Modo editar */
+.edit-row{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;
+  padding:10px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;
+}
+.edit-fields{display:grid;gap:6px;min-width:0}
+.edit-row input[type="text"]{padding:10px 12px}
+.edit-row .edit-note{font-size:15px}
+.btn-del{
+  appearance:none;cursor:pointer;background:transparent;
+  border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;min-height:44px;font-size:15px;font-weight:600;color:var(--rec);
+}
+
+.editor{display:grid;gap:20px}
+.add{display:grid;gap:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.add input[type="text"],.add select{background:var(--bg)}
+.sub-h{margin:0;font-family:var(--font-display);font-weight:700;font-size:22px;line-height:1.1}
+
+/* Botones */
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+.btn{
+  appearance:none;cursor:pointer;flex:1 1 180px;
+  min-height:50px;padding:12px 18px;border-radius:10px;
+  font-size:16px;font-weight:600;line-height:1.2;
+  background:var(--surface);color:var(--ink);border:1px solid var(--line);
+}
+.btn:active{transform:scale(.985)}
+.btn-primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn-danger{background:var(--rec);color:var(--on-rec);border-color:var(--rec)}
+.btn-link{
+  appearance:none;cursor:pointer;background:none;border:0;padding:8px 0;
+  font-size:15px;font-weight:600;color:var(--muted);text-decoration:underline;text-underline-offset:3px;
+}
+.confirm{display:grid;gap:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.confirm p{margin:0}
+
+.saved{margin:0;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.saved[data-kind="cloud"] .dot{background:var(--ok)}
+.saved[data-kind="offline"] .dot{background:var(--rec)}
+
+/* Aviso abajo */
+.toast{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;pointer-events:none;
+  display:flex;justify-content:center;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+}
+.toast-in{
+  pointer-events:auto;width:100%;max-width:528px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 10px 10px 16px;min-height:52px;border-radius:12px;
+  background:var(--toast-bg);color:var(--toast-fg);
+  box-shadow:0 10px 30px rgba(0,0,0,.28);
+}
+.toast-msg{min-width:0;font-size:15px;overflow-wrap:anywhere}
+.toast-btn{
+  appearance:none;cursor:pointer;flex:none;background:transparent;border:0;
+  padding:8px 10px;font-size:15px;font-weight:700;color:var(--toast-action);
+}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <div class="top-row">
+      <div class="brand">
+        <span class="eyebrow">Mochila</span>
+        <h1>Check-in de Equipos</h1>
+      </div>
+      <div class="count" aria-hidden="true"><span id="countNum">00</span><span class="of">/<span id="countTotal">13</span></span></div>
+    </div>
+    <div class="meter" id="meter" role="progressbar" aria-label="Equipos en la mochila" aria-valuemin="0" aria-valuemax="13" aria-valuenow="0">
+      <div class="cells" id="cells"></div>
+      <span class="nub" aria-hidden="true"></span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap main">
+  <section class="status" id="status" aria-live="polite">
+    <h2 class="status-title"><span class="rec" id="rec" aria-hidden="true" hidden></span><span id="statusTitle">Mochila vacía</span></h2>
+    <p class="status-detail" id="statusDetail">Toca cada equipo cuando lo metas en la mochila.</p>
+    <ul class="missing" id="missing"></ul>
+  </section>
+
+  <div class="field">
+    <label class="field-label" for="shoot">Cobertura</label>
+    <input id="shoot" type="text" maxlength="60" autocomplete="off" placeholder="¿Qué vas a grabar? Ej. boda, entrevista">
+  </div>
+
+  <p class="hint" id="editHint" hidden>Cambia los nombres, quita lo que no uses o agrega equipos nuevos abajo.</p>
+
+  <div id="groups"></div>
+
+  <section class="editor" id="editor" hidden>
+    <form class="add" id="addForm" autocomplete="off" novalidate>
+      <h2 class="sub-h">Agregar equipo</h2>
+      <div class="field">
+        <label class="field-label" for="addName">Nombre</label>
+        <input id="addName" type="text" maxlength="60" placeholder="Ej. Memorias SD">
+      </div>
+      <div class="field">
+        <label class="field-label" for="addNote">Nota (opcional)</label>
+        <input id="addNote" type="text" maxlength="80" placeholder="Ej. las dos de 128 GB">
+      </div>
+      <div class="field">
+        <label class="field-label" for="addGroup">Va en</label>
+        <select id="addGroup"></select>
+      </div>
+      <button class="btn btn-primary" type="submit">Agregar a la lista</button>
+    </form>
+    <div>
+      <button class="btn-link" id="restoreBtn" type="button">Volver a la lista original</button>
+      <div class="confirm" id="restoreConfirm" hidden>
+        <p>Tu lista vuelve a los 13 equipos de siempre. Lo que agregaste o cambiaste se borra.</p>
+        <div class="actions">
+          <button class="btn" id="restoreNo" type="button">Cancelar</button>
+          <button class="btn btn-danger" id="restoreYes" type="button">Sí, volver</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="actions" id="actions">
+    <button class="btn" id="editToggle" type="button" aria-pressed="false">Editar lista</button>
+    <button class="btn btn-primary" id="resetBtn" type="button">Nueva cobertura</button>
+  </div>
+  <div class="confirm" id="resetConfirm" hidden>
+    <p>¿Desmarcar todo para empezar otra cobertura?</p>
+    <div class="actions">
+      <button class="btn" id="resetNo" type="button">Cancelar</button>
+      <button class="btn btn-danger" id="resetYes" type="button">Sí, desmarcar todo</button>
+    </div>
+  </div>
+
+  <p class="saved" id="saved" data-kind="local"><span class="dot" aria-hidden="true"></span><span id="savedText">Se guarda en este dispositivo.</span></p>
+</main>
+
+<div class="toast" id="toast" hidden>
+  <div class="toast-in" role="status" aria-live="polite">
+    <span class="toast-msg" id="toastMsg"></span>
+    <button class="toast-btn" id="toastBtn" type="button" hidden></button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "checkin-equipos-v1";
+  var MAX_CELLS = 24;
+
+  var GROUPS = [
+    { id: "camara",  name: "Cámara" },
+    { id: "sonido",  name: "Sonido" },
+    { id: "soporte", name: "Trípode y estabilizador" },
+    { id: "luces",   name: "Luces y baterías" },
+    { id: "otros",   name: "Otros" }
+  ];
+
+  var DEFAULT_ITEMS = [
+    { id: "camara",              name: "Cámara",                  note: "",                                   group: "camara" },
+    { id: "baterias-camara",     name: "Baterías de la cámara",   note: "",                                   group: "camara" },
+    { id: "lentes",              name: "Lentes",                  note: "",                                   group: "camara" },
+    { id: "filtros",             name: "Filtros",                 note: "",                                   group: "camara" },
+    { id: "microfonos",          name: "Micrófonos",              note: "",                                   group: "sonido" },
+    { id: "cables-microfono",    name: "Cables del micrófono",    note: "",                                   group: "sonido" },
+    { id: "tripode",             name: "Trípode",                 note: "",                                   group: "soporte" },
+    { id: "piececita",           name: "Piececita",               note: "Lo que agarra la cámara al trípode", group: "soporte" },
+    { id: "estabilizador",       name: "Estabilizador",           note: "",                                   group: "soporte" },
+    { id: "mango-estabilizador", name: "Mango del estabilizador", note: "",                                   group: "soporte" },
+    { id: "base-estabilizador",  name: "Base del estabilizador",  note: "",                                   group: "soporte" },
+    { id: "luces",               name: "Luces",                   note: "",                                   group: "luces" },
+    { id: "baterias",            name: "Baterías",                note: "",                                   group: "luces" }
+  ];
+
+  var TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var reduceMotion = false;
+  try { reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+
+  /* ---------------- Estado ---------------- */
+
+  function fresh() {
+    return {
+      v: 1,
+      items: DEFAULT_ITEMS.map(function (i) { return { id: i.id, name: i.name, note: i.note, group: i.group }; }),
+      checked: {},
+      shoot: "",
+      updated: 0
+    };
+  }
+
+  function normalize(s) {
+    if (!s || typeof s !== "object" || !Array.isArray(s.items)) return null;
+    var groupIds = {};
+    GROUPS.forEach(function (g) { groupIds[g.id] = true; });
+    var seen = {};
+    var items = [];
+    s.items.forEach(function (raw) {
+      if (!raw || typeof raw !== "object") return;
+      var id = typeof raw.id === "string" ? raw.id.slice(0, 64) : "";
+      var name = typeof raw.name === "string" ? raw.name.trim().slice(0, 60) : "";
+      if (!id || !name || seen[id]) return;
+      seen[id] = true;
+      items.push({
+        id: id,
+        name: name,
+        note: typeof raw.note === "string" ? raw.note.trim().slice(0, 80) : "",
+        group: groupIds[raw.group] ? raw.group : "otros"
+      });
+    });
+    var checked = {};
+    var src = s.checked;
+    if (Array.isArray(src)) {
+      src.forEach(function (id) { if (seen[id]) checked[id] = true; });
+    } else if (src && typeof src === "object") {
+      Object.keys(src).forEach(function (id) { if (seen[id] && src[id] === true) checked[id] = true; });
+    }
+    return {
+      v: 1,
+      items: items,
+      checked: checked,
+      shoot: typeof s.shoot === "string" ? s.shoot.slice(0, 60) : "",
+      updated: Number(s.updated) || 0
+    };
+  }
+
+  function serial() {
+    return {
+      v: 1,
+      items: state.items.map(function (i) { return { id: i.id, name: i.name, note: i.note, group: i.group }; }),
+      checked: Object.keys(state.checked),
+      shoot: state.shoot,
+      updated: state.updated
+    };
+  }
+
+  function loadLocal() {
+    try {
+      var raw = window.localStorage.getItem(KEY);
+      return raw ? normalize(JSON.parse(raw)) : null;
+    } catch (e) { return null; }
+  }
+
+  function saveLocal() {
+    try { window.localStorage.setItem(KEY, JSON.stringify(serial())); } catch (e) {}
+  }
+
+  var state = loadLocal() || fresh();
+  var editing = false;
+
+  function commit() {
+    state.updated = Date.now();
+    saveLocal();
+    queueRemote();
+  }
+
+  function counts() {
+    var total = state.items.length;
+    var done = 0;
+    state.items.forEach(function (i) { if (state.checked[i.id]) done++; });
+    return { total: total, done: done, full: total > 0 && done === total };
+  }
+
+  /* ---------------- Guardado en la cuenta (cuando se abre dentro de Claude) ---------------- */
+
+  var remote = null;      // referencia al documento
+  var remoteTimer = null;
+  var writing = false;
+  var dirty = false;
+  var retried = false;
+
+  var SAVED_TEXT = {
+    local: "Se guarda en este dispositivo.",
+    connecting: "Conectando con tu cuenta…",
+    saving: "Guardando…",
+    cloud: "Guardado en tu cuenta. Lo ves igual en el teléfono y en la computadora.",
+    offline: "Sin conexión por ahora. Lo que marques queda guardado en este dispositivo."
+  };
+
+  function setSaved(kind) {
+    $("saved").setAttribute("data-kind", kind);
+    $("savedText").textContent = SAVED_TEXT[kind] || SAVED_TEXT.local;
+  }
+
+  function queueRemote() {
+    if (!remote) return;
+    clearTimeout(remoteTimer);
+    remoteTimer = setTimeout(flush, 600);
+  }
+
+  function flush() {
+    remoteTimer = null;
+    if (!remote) return;
+    if (writing) { dirty = true; return; }
+    writing = true;
+    dirty = false;
+    setSaved("saving");
+    remote.set(serial()).then(function () {
+      retried = false;
+      setSaved("cloud");
+    }, function (e) {
+      var code = e && e.code;
+      if (code === "unavailable" || code === "resource_exhausted") {
+        setSaved("offline");
+        if (!retried) {
+          retried = true;
+          clearTimeout(remoteTimer);
+          remoteTimer = setTimeout(flush, 2500 + Math.random() * 2500);
+        }
+      } else {
+        remote = null;
+        setSaved("local");
+      }
+    }).then(function () {
+      writing = false;
+      if (dirty && remote) queueRemote();
+    });
+  }
+
+  function connect() {
+    var c = window.claude;
+    if (!c || typeof c.use !== "function") { setSaved("local"); return; }
+    setSaved("connecting");
+    Promise.all([c.use("db"), c.use("user")]).then(function (res) {
+      var db = res[0], user = res[1];
+      if (!db || !user) { setSaved("local"); return null; }
+      return user.id().then(function (uid) {
+        if (!uid) { setSaved("local"); return; }
+        var ref;
+        try { ref = db.doc("data/users/" + uid + "/estado"); } catch (e) { setSaved("local"); return; }
+        listen(ref);
+      });
+    }).catch(function () { setSaved("local"); });
+  }
+
+  function listen(ref) {
+    var settled = false;
+    var loadTimer = setTimeout(function () { if (!settled) setSaved("offline"); }, 10000);
+
+    ref.onSnapshot(function (snap) {
+      if (snap.metadata && snap.metadata.hasPendingWrites) return;
+      var fromCache = !!(snap.metadata && snap.metadata.fromCache);
+      var first = false;
+      if (!fromCache && !settled) {
+        settled = true;
+        first = true;
+        clearTimeout(loadTimer);
+        remote = ref;
+      }
+      if (!snap.exists) {
+        if (first) { if (state.updated === 0) state.updated = Date.now(); saveLocal(); queueRemote(); }
+        return;
+      }
+      var incoming = normalize(JSON.parse(JSON.stringify(snap.data())));
+      if (!incoming) return;
+      if (incoming.updated > state.updated) {
+        state = incoming;
+        saveLocal();
+        if (!editing) render();
+      } else if (first && incoming.updated < state.updated) {
+        queueRemote();
+      }
+      if (settled && !writing && !remoteTimer) setSaved("cloud");
+    }, function () {
+      clearTimeout(loadTimer);
+      remote = null;
+      setSaved("local");
+    });
+  }
+
+  /* ---------------- Dibujar ---------------- */
+
+  function el(tag, attrs) {
+    var n = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function (k) {
+        var v = attrs[k];
+        if (v === null || v === undefined || v === false) return;
+        if (k === "class") n.className = v;
+        else if (k === "text") n.textContent = v;
+        else n.setAttribute(k, v === true ? "" : String(v));
+      });
+    }
+    for (var i = 2; i < arguments.length; i++) {
+      var kid = arguments[i];
+      if (kid !== null && kid !== undefined) n.append(kid);
+    }
+    return n;
+  }
+
+  function pad(n) { return n < 10 ? "0" + n : String(n); }
+
+  function itemRow(it) {
+    var on = !!state.checked[it.id];
+    var box = el("span", { "class": "box", "aria-hidden": "true" });
+    box.innerHTML = TICK;
+    var btn = el("button", {
+      type: "button", "class": "item", role: "checkbox",
+      "aria-checked": on ? "true" : "false", "data-id": it.id
+    },
+      box,
+      el("span", { "class": "txt" },
+        el("span", { "class": "name", text: it.name }),
+        it.note ? el("span", { "class": "note", text: it.note }) : null
+      )
+    );
+    return el("li", null, btn);
+  }
+
+  function editRow(it) {
+    var name = el("input", {
+      type: "text", "class": "edit-name", id: "n-" + it.id, value: it.name,
+      maxlength: 60, autocomplete: "off", "aria-label": "Nombre del equipo"
+    });
+    var note = el("input", {
+      type: "text", "class": "edit-note", id: "t-" + it.id, value: it.note || "",
+      maxlength: 80, autocomplete: "off", placeholder: "Nota (opcional)", "aria-label": "Nota de " + it.name
+    });
+    name.addEventListener("input", function () {
+      var v = name.value.trim();
+      if (v) { it.name = v; commit(); }
+    });
+    name.addEventListener("blur", function () { if (!name.value.trim()) name.value = it.name; });
+    note.addEventListener("input", function () { it.note = note.value.trim(); commit(); });
+    var del = el("button", { type: "button", "class": "btn-del", "aria-label": "Quitar " + it.name, text: "Quitar" });
+    del.addEventListener("click", function () { removeItem(it.id); });
+    return el("li", { "class": "edit-row" }, el("div", { "class": "edit-fields" }, name, note), del);
+  }
+
+  function renderList() {
+    var root = $("groups");
+    root.replaceChildren();
+    GROUPS.forEach(function (g) {
+      var items = state.items.filter(function (i) { return i.group === g.id; });
+      if (!items.length) return;
+      var ul = el("ul", { "class": "list" });
+      items.forEach(function (it) { ul.append(editing ? editRow(it) : itemRow(it)); });
+      root.append(el("section", { "class": "group", "aria-labelledby": "g-" + g.id },
+        el("h2", { "class": "group-h" },
+          el("span", { "class": "tape", id: "g-" + g.id, text: g.name }),
+          editing ? null : el("span", { "class": "group-n", "data-gcount": g.id })
+        ),
+        ul
+      ));
+    });
+  }
+
+  function renderSummary() {
+    var c = counts();
+
+    $("countNum").textContent = pad(c.done);
+    $("countTotal").textContent = pad(c.total);
+
+    var cells = $("cells");
+    var n = Math.max(1, Math.min(c.total, MAX_CELLS));
+    if (cells.childElementCount !== n) {
+      cells.replaceChildren();
+      for (var i = 0; i < n; i++) cells.append(el("span", { "class": "cell" }));
+    }
+    var lit = c.total === 0 ? 0 : (c.total <= MAX_CELLS ? c.done : Math.round(c.done / c.total * MAX_CELLS));
+    Array.prototype.forEach.call(cells.children, function (cell, idx) { cell.classList.toggle("on", idx < lit); });
+    var meter = $("meter");
+    meter.classList.toggle("full", c.full);
+    meter.setAttribute("aria-valuemax", String(c.total));
+    meter.setAttribute("aria-valuenow", String(c.done));
+    meter.setAttribute("aria-valuetext", c.done + " de " + c.total + " en la mochila");
+
+    var status = $("status");
+    var title = $("statusTitle");
+    var detail = $("statusDetail");
+    var missing = $("missing");
+    status.classList.toggle("done", c.full);
+    $("rec").hidden = !c.full;
+    missing.replaceChildren();
+
+    if (c.total === 0) {
+      title.textContent = "Tu lista está vacía";
+      detail.textContent = "Toca «Editar lista» para agregar tus equipos.";
+    } else if (c.full) {
+      title.textContent = "Todo en la mochila";
+      detail.textContent = (state.shoot ? "Listo para salir a «" + state.shoot + "»." : "Listo para salir a grabar.") + " No se te queda nada.";
+    } else if (c.done === 0) {
+      title.textContent = "Mochila vacía";
+      detail.textContent = "Toca cada equipo cuando lo metas en la mochila.";
+    } else {
+      var left = c.total - c.done;
+      title.textContent = left === 1 ? "Falta 1" : "Faltan " + left;
+      detail.textContent = "Toca uno para ir a buscarlo en la lista:";
+      state.items.forEach(function (it) {
+        if (state.checked[it.id]) return;
+        missing.append(el("li", null, el("button", { type: "button", "class": "chip", "data-goto": it.id, text: it.name })));
+      });
+    }
+    missing.hidden = !missing.childElementCount;
+
+    GROUPS.forEach(function (g) {
+      var node = document.querySelector('[data-gcount="' + g.id + '"]');
+      if (!node) return;
+      var items = state.items.filter(function (i) { return i.group === g.id; });
+      var done = items.filter(function (i) { return state.checked[i.id]; }).length;
+      node.textContent = (done === items.length ? "✓ " : "") + done + "/" + items.length;
+      node.classList.toggle("all", done === items.length);
+    });
+  }
+
+  function render() {
+    renderList();
+    renderSummary();
+    var shoot = $("shoot");
+    if (document.activeElement !== shoot) shoot.value = state.shoot || "";
+    var toggleBtn = $("editToggle");
+    toggleBtn.textContent = editing ? "Terminar de editar" : "Editar lista";
+    toggleBtn.setAttribute("aria-pressed", editing ? "true" : "false");
+    $("editor").hidden = !editing;
+    $("editHint").hidden = !editing;
+    $("resetBtn").hidden = editing;
+    if (editing) $("resetConfirm").hidden = true;
+    else $("restoreConfirm").hidden = true;
+  }
+
+  /* ---------------- Acciones ---------------- */
+
+  function buzz(pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+  }
+
+  function toggle(btn) {
+    var id = btn.getAttribute("data-id");
+    var wasFull = counts().full;
+    if (state.checked[id]) delete state.checked[id];
+    else state.checked[id] = true;
+    var on = !!state.checked[id];
+    btn.setAttribute("aria-checked", on ? "true" : "false");
+    buzz(on ? 12 : 6);
+    commit();
+    renderSummary();
+    if (!wasFull && counts().full) celebrate();
+  }
+
+  function celebrate() {
+    buzz([25, 50, 25]);
+    var meter = $("meter");
+    meter.classList.remove("pop");
+    void meter.offsetWidth;
+    meter.classList.add("pop");
+  }
+
+  function goTo(id) {
+    var safe = window.CSS && CSS.escape ? CSS.escape(id) : id.replace(/"/g, "");
+    var btn = document.querySelector('.item[data-id="' + safe + '"]');
+    if (!btn) return;
+    btn.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+    try { btn.focus({ preventScroll: true }); } catch (e) {}
+    btn.classList.remove("flash");
+    void btn.offsetWidth;
+    btn.classList.add("flash");
+  }
+
+  var lastRemoved = null;
+
+  function removeItem(id) {
+    var idx = -1;
+    state.items.forEach(function (it, i) { if (it.id === id) idx = i; });
+    if (idx < 0) return;
+    var item = state.items[idx];
+    var wasChecked = !!state.checked[id];
+    state.items.splice(idx, 1);
+    delete state.checked[id];
+    commit();
+    render();
+    lastRemoved = { item: item, idx: idx, checked: wasChecked };
+    toast("Quitaste «" + item.name + "».", "Deshacer", function () {
+      if (!lastRemoved) return;
+      var r = lastRemoved;
+      lastRemoved = null;
+      if (state.items.some(function (i) { return i.id === r.item.id; })) return;
+      state.items.splice(Math.min(r.idx, state.items.length), 0, r.item);
+      if (r.checked) state.checked[r.item.id] = true;
+      commit();
+      render();
+    });
+  }
+
+  function newId() {
+    return "e-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+  }
+
+  var toastTimer = null;
+  function hideToast() { $("toast").hidden = true; clearTimeout(toastTimer); }
+  function toast(msg, actionLabel, action) {
+    $("toastMsg").textContent = msg;
+    var b = $("toastBtn");
+    b.hidden = !actionLabel;
+    b.textContent = actionLabel || "";
+    b.onclick = action ? function () { hideToast(); action(); } : null;
+    $("toast").hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, action ? 6000 : 2600);
+  }
+
+  /* ---------------- Eventos ---------------- */
+
+  $("groups").addEventListener("click", function (e) {
+    var btn = e.target.closest(".item");
+    if (btn) toggle(btn);
+  });
+
+  $("missing").addEventListener("click", function (e) {
+    var chip = e.target.closest("[data-goto]");
+    if (chip) goTo(chip.getAttribute("data-goto"));
+  });
+
+  $("shoot").addEventListener("input", function (e) {
+    state.shoot = e.target.value.slice(0, 60);
+    commit();
+    renderSummary();
+  });
+
+  $("editToggle").addEventListener("click", function () {
+    editing = !editing;
+    render();
+    if (!editing) toast("Lista guardada.");
+  });
+
+  $("resetBtn").addEventListener("click", function () {
+    $("resetConfirm").hidden = false;
+    $("resetNo").focus();
+  });
+  $("resetNo").addEventListener("click", function () {
+    $("resetConfirm").hidden = true;
+    $("resetBtn").focus();
+  });
+  $("resetYes").addEventListener("click", function () {
+    state.checked = {};
+    state.shoot = "";
+    commit();
+    $("resetConfirm").hidden = true;
+    render();
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    toast("Todo desmarcado. A llenar la mochila.");
+  });
+
+  $("restoreBtn").addEventListener("click", function () {
+    $("restoreConfirm").hidden = false;
+    $("restoreNo").focus();
+  });
+  $("restoreNo").addEventListener("click", function () { $("restoreConfirm").hidden = true; });
+  $("restoreYes").addEventListener("click", function () {
+    var keep = state.checked;
+    var f = fresh();
+    state.items = f.items;
+    state.checked = {};
+    state.items.forEach(function (i) { if (keep[i.id]) state.checked[i.id] = true; });
+    commit();
+    $("restoreConfirm").hidden = true;
+    render();
+    toast("Volviste a la lista original.");
+  });
+
+  var groupSelect = $("addGroup");
+  GROUPS.forEach(function (g) { groupSelect.append(el("option", { value: g.id, text: g.name })); });
+  groupSelect.value = "otros";
+
+  $("addForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var nameInput = $("addName");
+    var name = nameInput.value.trim().slice(0, 60);
+    if (!name) { nameInput.focus(); return; }
+    state.items.push({ id: newId(), name: name, note: $("addNote").value.trim().slice(0, 80), group: groupSelect.value });
+    commit();
+    nameInput.value = "";
+    $("addNote").value = "";
+    render();
+    toast("Agregaste «" + name + "».");
+    nameInput.focus();
+  });
+
+  /* ---------------- Arranque ---------------- */
+
+  render();
+  connect();
+
+  if (!window.claude && "serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
